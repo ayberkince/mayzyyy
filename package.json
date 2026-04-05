@@ -16,6 +16,7 @@
     "@fullcalendar/multimonth": "^6.1.20",
     "@fullcalendar/react": "^6.1.20",
     "@fullcalendar/timegrid": "^6.1.20",
+    "@google/generative-ai": "^0.24.1",
     "@tauri-apps/api": "^2",
     "@tauri-apps/plugin-opener": "^2",
     "canvas-confetti": "^1.9.4",
