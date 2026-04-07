@@ -6,17 +6,16 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700;900&display=swap');
 
 :root {
-  --bg-color: #F4F0E6; /* Raw retro beige */
+  --bg-color: #F4F0E6; 
   --border-thick: 3px solid #000;
   --shadow-hard: 6px 6px 0px #000;
   --shadow-hard-hover: 8px 8px 0px #000;
   --shadow-hard-active: 0px 0px 0px #000;
   
-  /* Bold Brutalist Palette */
-  --color-fire: #FF5E5B;    /* Punchy Red */
-  --color-soon: #FFD166;    /* Bold Yellow */
-  --color-void: #48DBFB;    /* Electric Blue */
-  --color-ai: #00E676;      /* Neon Green */
+  --color-fire: #FF5E5B;    
+  --color-soon: #FFD166;    
+  --color-void: #48DBFB;    
+  --color-ai: #00E676;      
   --color-white: #FFFFFF;
   --color-text: #000000;
 }
@@ -29,16 +28,14 @@ body {
   overflow-x: hidden;
 }
 
-/* Kill the dreamy background animations */
-/* Lock the app to the exact height of the window and prevent body scrolling */
 .dream-shell, .night {
   background: var(--bg-color);
   animation: none;
-  height: 100vh; /* Strict viewport height */
+  height: 100vh; 
   width: 100vw; 
   display: flex; 
   flex-direction: column;
-  overflow: hidden; /* Stops the whole page from bouncing/scrolling */
+  overflow: hidden; 
 }
 
 .bg-overlay, .bg-overlay-darker {
@@ -81,7 +78,6 @@ body {
   gap: 15px;
 }
 
-/* Buttons & Toggles */
 .energy-toggle, .view-tabs {
   display: flex;
   gap: 10px;
@@ -125,10 +121,10 @@ button.active {
 
 .zen-activate-btn { background: var(--color-fire); }
 
-/* --- HORIZON BOARD (RESPONSIVE FLEX ENGINE) --- */
+/* --- HORIZON BOARD --- */
 .dashboard-layout {
   flex: 1; 
-  min-height: 0; /* CRITICAL: Tells flexbox it's allowed to shrink */
+  min-height: 0; 
   padding: 0 40px 20px 40px; 
   position: relative; 
   z-index: 10;
@@ -146,7 +142,7 @@ button.active {
 
 .global-time-travel {
   display: flex; justify-content: center; align-items: center; gap: 20px; position: relative;
-  flex-shrink: 0; /* Prevents the date bar from getting squished */
+  flex-shrink: 0; 
 }
 
 .current-travel-date {
@@ -183,10 +179,11 @@ button.active {
   background: var(--color-white);
   border: var(--border-thick);
   box-shadow: var(--shadow-hard);
-  padding: 15px; /* Slightly reduced to save space on small screens */
+  padding: 15px;
   display: flex;
   flex-direction: column;
   border-radius: 0;
+  backdrop-filter: none;
   min-height: 0;
 }
 
@@ -202,7 +199,7 @@ button.active {
 
 .horizon-list {
   flex: 1; 
-  overflow-y: auto; /* Scroll ONLY the inner lists! */
+  overflow-y: auto; 
   min-height: 0;
   display: flex; 
   flex-direction: column; 
@@ -250,7 +247,6 @@ button.active {
   transform: rotate(2deg);
 }
 
-/* Updated Action Buttons to handle Zap + Dices + Trash */
 .card-actions {
   display: flex;
   gap: 8px;
@@ -285,14 +281,13 @@ button.active {
   background: var(--color-soon);
 }
 
-/* --- NEW: THE SHREDDER ZONE --- */
 .shredder-zone {
   background: var(--color-white);
   border: 4px dashed var(--color-fire);
   color: var(--color-fire);
-  padding: 15px; /* Reduced slightly */
+  padding: 15px;
   margin-top: 10px;
-  flex-shrink: 0; /* Never squish the shredder */
+  flex-shrink: 0;
   display: flex;
   justify-content: center;
   align-items: center;
@@ -314,6 +309,141 @@ button.active {
   box-shadow: inset 8px 8px 0px rgba(0,0,0,0.3);
 }
 
+/* --- CUSTOM NEO-BRUTALIST WEEK VIEW --- */
+.custom-week-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: var(--color-white);
+  overflow-y: auto;
+}
+
+.week-grid-header {
+  display: grid;
+  grid-template-columns: 80px repeat(7, 1fr);
+  background: #E0E0E0;
+  border-bottom: 4px solid #000;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.week-header-cell {
+  border-left: 2px solid #000;
+  padding: 15px 10px;
+  text-align: center;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 1.2rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.week-header-cell:hover {
+  background: var(--color-soon);
+}
+
+.chunk-label-empty {
+  background: #E0E0E0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.week-grid-row {
+  display: grid;
+  grid-template-columns: 80px repeat(7, 1fr);
+  border-bottom: 2px solid #000;
+  height: 200px;
+}
+
+.chunk-label {
+  background: var(--color-void);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 1rem;
+  border-right: 4px solid #000;
+  text-align: center;
+  padding: 5px;
+  letter-spacing: 2px;
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+}
+
+.row-morning .chunk-label { background: #FFD166; }
+.row-afternoon .chunk-label { background: #FF5E5B; color: #FFF;}
+.row-evening .chunk-label { background: #48DBFB; }
+.row-night .chunk-label { background: #1A1A1A; color: #FFF; }
+
+.week-day-cell {
+  border-left: 2px solid #000;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  cursor: pointer;
+  transition: background 0.1s;
+  overflow-y: auto; 
+  height: 100%;
+  /* CRITICAL FIX 1: This completely prevents items from breaking out of their rows */
+  min-height: 0; 
+  max-height: 100%;
+}
+
+.week-day-cell:hover { background: #F9F9F9; }
+
+.week-task-card {
+  background: var(--color-white);
+  border: 3px solid #000;
+  box-shadow: 3px 3px 0px #000;
+  padding: 10px;
+  cursor: pointer;
+  transition: transform 0.1s, box-shadow 0.1s;
+  flex-shrink: 0;
+}
+
+.week-task-card:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0px #000;
+  background: var(--color-ai); 
+}
+
+.week-task-card.dimmed {
+  background: #E0E0E0;
+  opacity: 0.6;
+  text-decoration: line-through;
+  box-shadow: 0px 0px 0px #000;
+  transform: translate(3px, 3px);
+}
+
+.week-task-time {
+  font-size: 0.9rem;
+  font-weight: 900;
+  background: #000;
+  color: #fff;
+  display: inline-block;
+  padding: 4px 8px;
+  margin-bottom: 8px;
+}
+
+.week-task-title {
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+@media (max-width: 1200px) {
+  .custom-week-wrapper {
+    overflow-x: auto;
+  }
+  .week-grid-header, .week-grid-row {
+    min-width: 1000px;
+  }
+}
+
 /* --- FULLCALENDAR OVERRIDES (RESPONSIVE) --- */
 .calendar-wrapper {
   background: var(--color-white);
@@ -322,7 +452,7 @@ button.active {
   border-radius: 0;
   padding: 15px;
   flex: 1;
-  min-height: 0; /* Allows FullCalendar to calculate its own internal scroll */
+  min-height: 0; 
   display: flex;
   flex-direction: column;
 }
@@ -330,11 +460,6 @@ button.active {
 .fc {
   flex: 1;
   min-height: 0;
-}
-
-/* Fix overlapping events in the Neo-Brutalist thick borders */
-.fc-timegrid-event {
-  margin-bottom: 2px !important;
 }
 
 .fc-theme-standard td, .fc-theme-standard th, .fc-theme-standard .fc-scrollgrid {
@@ -353,20 +478,13 @@ button.active {
   background: var(--color-void) !important;
   border: 2px solid #000 !important;
   color: #000 !important;
-  box-shadow: 2px 2px 0px #000 !important; /* Tighter shadow so it doesn't bleed */
+  box-shadow: 2px 2px 0px #000 !important; 
   border-radius: 0 !important;
   font-weight: 700 !important;
   padding: 2px 5px !important;
-  margin: 0 !important; /* Removed the hacky margin */
+  /* CRITICAL FIX 2: I completely removed 'margin: 0 !important'. Fullcalendar uses dynamic margins to stack events, removing it forced them to overlap! */
 }
 
-/* Ensure the text wraps nicely inside the smaller 15-minute blocks */
-.fc-event-main {
-  white-space: normal !important;
-  overflow: hidden;
-  font-size: 0.85rem;
-  line-height: 1.1;
-}
 .fc .fc-toolbar-title {
   font-weight: 900 !important;
   text-transform: uppercase;
@@ -400,7 +518,7 @@ button.active {
   bottom: 120px; 
   right: 40px; 
   width: 380px;
-  max-height: calc(100vh - 160px); /* Prevents it from going off the top of the screen */
+  max-height: calc(100vh - 160px); 
   background: var(--color-white); border: var(--border-thick);
   box-shadow: 12px 12px 0px #000; border-radius: 0; z-index: 1000;
   display: flex; flex-direction: column;
@@ -418,7 +536,7 @@ button.active {
 
 .ai-chat-body { 
   flex: 1; 
-  min-height: 0; /* Allows the chat history to scroll */
+  min-height: 0; 
   display: flex; 
   flex-direction: column; 
   padding: 0; 
@@ -556,6 +674,11 @@ button.active {
   padding: 12px !important;
 }
 
+.compact-add-form {
+  display: flex;
+  flex-direction: column;
+}
+
 .giant-add-form {
   display: flex;
   gap: 20px;
@@ -587,12 +710,10 @@ button.active {
   align-items: center;
   justify-content: center;
   background-color: var(--color-void);
-  /* Brutalist Comic-Book Dot Grid */
   background-image: radial-gradient(#000 2px, transparent 0);
   background-size: 35px 35px;
 }
 
-/* The Emergency Exit Switch */
 .exit-zen-btn {
   position: absolute;
   top: 40px;
@@ -625,7 +746,6 @@ button.active {
   z-index: 10;
 }
 
-/* The Heavy Clock Face */
 .visual-timer {
   position: relative;
   width: 400px;
@@ -670,7 +790,6 @@ button.active {
   -webkit-text-fill-color: initial;
 }
 
-/* Massive Focus Cards */
 .zen-task-list {
   display: flex;
   flex-direction: column;
@@ -805,7 +924,6 @@ button.active {
   background: var(--color-ai);
 }
 
-/* --- DOPAMINE SHAKE ANIMATION --- */
 .shake-animation {
   animation: hardcore-shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
 }
@@ -820,10 +938,8 @@ button.active {
 /* =========================================
    CORPORATE SURVIVAL TOOLS (NEO-BRUTALIST)
 ========================================= */
-
-/* The Interruption Anchor Banner */
 .anchor-banner {
-  position: relative; /* Changed from fixed to flow naturally */
+  position: relative; 
   width: 100vw;
   background: var(--color-soon); 
   border-bottom: 6px solid #000;
@@ -833,7 +949,7 @@ button.active {
   align-items: center;
   padding: 10px 40px;
   box-shadow: 0px 4px 0px rgba(0,0,0,1);
-  flex-shrink: 0; /* Never squish the banner */
+  flex-shrink: 0; 
 }
 
 .anchor-content {
@@ -868,15 +984,22 @@ button.active {
 }
 
 .anchor-clear-btn:hover {
-  background: var(--color-ai); /* Neon green success */
+  background: var(--color-ai); 
 }
 
 /* =========================================
    RESPONSIVE ENGINE (MOBILE / NARROW SCREENS)
 ========================================= */
+@media (max-width: 1200px) {
+  .custom-week-wrapper {
+    overflow-x: auto;
+  }
+  .week-grid-header, .week-grid-row {
+    min-width: 1000px;
+  }
+}
+
 @media (max-width: 1000px) {
-  
-  /* 1. Stack the Header and wrap the buttons */
   .header-container { padding: 10px; }
   .top-nav {
     flex-direction: column;
@@ -889,22 +1012,19 @@ button.active {
     justify-content: center;
   }
 
-  /* 2. Give the main dashboard room to breathe */
   .dashboard-layout { padding: 0 10px 10px 10px; }
 
-  /* 3. Stack the Horizon Columns vertically */
   .horizon-panel {
     flex-direction: column;
-    overflow-y: auto; /* Let the whole board scroll down */
+    overflow-y: auto; 
     min-height: 0;
   }
 
   .horizon-zone {
-    flex: none; /* Stop them from sharing the screen height */
-    min-height: 350px; /* Give each column enough room to show tasks */
+    flex: none; 
+    min-height: 350px; 
   }
 
-  /* 4. Tame the Giant Typography */
   .anchor-banner {
     flex-direction: column;
     gap: 10px;
@@ -923,7 +1043,6 @@ button.active {
     padding: 10px;
   }
 
-  /* 5. Make the AI Chat fit on the screen */
   .ai-chat-panel {
     width: 90vw;
     right: 5vw;

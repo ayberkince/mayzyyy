@@ -4,17 +4,15 @@ import { Sparkles, Trash2, BatteryFull, BatteryMedium, BatteryWarning, Dices, Gr
 import confetti from "canvas-confetti";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
-import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import multiMonthPlugin from "@fullcalendar/multimonth";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import "./App.css";
 
-// --- TYPESCRIPT BLUEPRINTS ---
 interface Task {
   id: number;
   date: string;
-  endDate?: string; // NEW: Allows exact time blocks
+  endDate?: string;
   title: string;
   status: boolean;
   energy?: "spicy" | "fidget" | "dopamine";
@@ -24,6 +22,15 @@ interface ChatMessage { role: 'user' | 'ai'; text: string; }
 
 const getLocalISODate = (d: Date) => new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().split('T')[0];
 const getTodayStr = () => getLocalISODate(new Date());
+
+const getTaskChunk = (dateStr: string) => {
+  if (!dateStr.includes('T')) return 'morning'; 
+  const hour = new Date(dateStr).getHours();
+  if (hour >= 5 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 17) return 'afternoon';
+  if (hour >= 17 && hour < 21) return 'evening';
+  return 'night';
+};
 
 const playSound = (type: 'clack' | 'shred' | 'zen' | 'anchor') => {
   try {
@@ -57,7 +64,11 @@ const playSound = (type: 'clack' | 'shred' | 'zen' | 'anchor') => {
 
 export default function App() {
   const [bg] = useState("night");
-  const [inputValue, setInputValue] = useState("");
+  
+  const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [newTaskTime, setNewTaskTime] = useState("");
+  const [newTaskEnergy, setNewTaskEnergy] = useState<"spicy" | "fidget" | "dopamine">("fidget");
+
   const [energy, setEnergy] = useState<"hyper" | "normal" | "survival">("normal");
   const [zenMode, setZenMode] = useState(false);
   const [time, setTime] = useState(new Date());
@@ -68,18 +79,15 @@ export default function App() {
   const [taskModalDate, setTaskModalDate] = useState<string | null>(null);
   const [draggedTaskId, setDraggedTaskId] = useState<number | null>(null);
 
-  // --- CORE SYSTEM STATES ---
   const [tasks, setTasks] = useState<Task[]>(() => JSON.parse(localStorage.getItem("mayzyyy_adhd_tasks") || "[]"));
   const [aiKey, setAiKey] = useState(() => localStorage.getItem("mayzyyy_ai_key") || "");
   const [isAiLoading, setIsAiLoading] = useState(false);
   
-  // --- CHAT AI STATE ---
   const [isAiOpen, setIsAiOpen] = useState(false);
   const [aiInput, setAiInput] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([{ role: 'ai', text: "Hey! I'm Mayzyyy. What do we need to tackle on the calendar?" }]);
   const chatEndRef = useRef<HTMLDivElement>(null);
   
-  // --- CORPORATE FEATURE STATES ---
   const [hypeFile, setHypeFile] = useState<Task[]>(() => JSON.parse(localStorage.getItem("mayzyyy_hype") || "[]"));
   const [isHypeModalOpen, setIsHypeModalOpen] = useState(false);
   const [hypeSummary, setHypeSummary] = useState("");
@@ -105,7 +113,6 @@ export default function App() {
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages, isAiOpen]);
   useEffect(() => { const timer = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(timer); }, []);
 
-  // --- GLOBAL HOTKEYS ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.ctrlKey && e.code === 'Space') { e.preventDefault(); setIsAiOpen(prev => !prev); }
@@ -116,7 +123,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // --- CORPORATE AI: MASKING TRANSLATOR ---
   const handleTranslate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!translatorInput.trim() || !aiKey) return;
@@ -131,7 +137,6 @@ export default function App() {
     setIsAiLoading(false);
   };
 
-  // --- CORPORATE AI: HYPE FILE GENERATOR ---
   const generateHypeSummary = async () => {
     if (!aiKey || hypeFile.length === 0) return;
     setIsAiLoading(true);
@@ -166,8 +171,6 @@ export default function App() {
       
       Reply conversationally FIRST, then append "|||" followed by a JSON object using these optional arrays:
       - "add": [{"title": "Task Name", "date": "YYYY-MM-DDTHH:mm:00", "energy": "spicy" | "fidget" | "dopamine"}] 
-        * TIME RULE: If a time is specified, use ISO format. Otherwise use YYYY-MM-DD.
-        * ENERGY RULE: "spicy" = hard/heavy tasks. "fidget" = easy/chores. "dopamine" = fun/rewarding.
       - "remove": ["Task Name to delete"]
       - "complete": ["Task Name to cross off"]
       
@@ -211,12 +214,10 @@ export default function App() {
                   if (isMeeting && hasTime) {
                     const mainDateObj = new Date(taskDate);
                     const prepStart = new Date(mainDateObj.getTime() - 15 * 60000);
-                    const meetingEnd = new Date(mainDateObj.getTime() + 60 * 60000); // 1 hr meeting
-                    const decompressEnd = new Date(meetingEnd.getTime() + 15 * 60000); // 15 min decompress
-                    
+                    const meetingEnd = new Date(mainDateObj.getTime() + 60 * 60000);
+                    const decompressEnd = new Date(meetingEnd.getTime() + 15 * 60000);
                     const formatIso = (d: Date) => { const iso = new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString(); return iso.substring(0, 19); };
 
-                    // Now we pass an exact 'endDate' so they stack like perfect bricks!
                     newTasks.push({ id: Date.now() + Math.random(), date: formatIso(prepStart), endDate: formatIso(mainDateObj), title: `🛡️ Prep: ${taskTitle}`, status: false, energy: "fidget" });
                     newTasks.push({ id: Date.now() + Math.random(), date: taskDate, endDate: formatIso(meetingEnd), title: taskTitle, status: false, energy: "spicy" });
                     newTasks.push({ id: Date.now() + Math.random(), date: formatIso(meetingEnd), endDate: formatIso(decompressEnd), title: `🛡️ Decompress`, status: false, energy: "fidget" });
@@ -268,14 +269,26 @@ export default function App() {
     setUnstuckPrompt({ id: taskId, text: microSteps[Math.floor(Math.random() * microSteps.length)] });
   };
 
-  const baseDateStr = getLocalISODate(baseDate);
-  const addTask = (e: React.FormEvent | null, specificTitle?: string, horizonTarget: string = baseDateStr) => {
+  const handleManualAdd = (e: React.FormEvent, targetDate: string) => {
     if (e) e.preventDefault();
-    const titleToUse = specificTitle || inputValue;
-    if (!titleToUse.trim()) return;
-    setTasks([...tasks, { id: Date.now(), date: horizonTarget, title: titleToUse, status: false, energy: "fidget" }]);
-    setInputValue("");
+    if (!newTaskTitle.trim()) return;
+    let finalDate = targetDate;
+    if (newTaskTime) finalDate = `${targetDate.split('T')[0]}T${newTaskTime}:00`;
+
+    setTasks([...tasks, { 
+      id: Date.now(), 
+      date: finalDate, 
+      title: newTaskTitle, 
+      status: false, 
+      energy: newTaskEnergy 
+    }]);
+
+    setNewTaskTitle("");
+    setNewTaskTime("");
+    setNewTaskEnergy("fidget");
   };
+
+  const baseDateStr = getLocalISODate(baseDate);
 
   const handleCalendarClick = (info: any) => {
     const currentTime = new Date().getTime(); const timeDifference = currentTime - lastClickTimeRef.current; const dateOnly = info.dateStr.split('T')[0];
@@ -297,9 +310,8 @@ export default function App() {
 
   const deleteTask = (id: number) => { playSound('shred'); setTasks(tasks.filter((t: Task) => t.id !== id)); };
 
-  // --- BULLETPROOF DRAG & DROP FIX ---
   const handleDrop = (e: React.DragEvent, zone: "fire" | "soon" | "void" | "shredder") => {
-    e.preventDefault(); // CRITICAL: Stop the browser from blocking the drop!
+    e.preventDefault(); 
     const targetId = Number(e.dataTransfer.getData("taskId")) || draggedTaskId;
     if (!targetId) return;
 
@@ -308,7 +320,7 @@ export default function App() {
       const taskToShred = tasks.find(t => t.id === targetId);
       if (taskToShred && (taskToShred.energy === 'spicy' || taskToShred.energy === 'dopamine' || taskToShred.title.includes('🛡️'))) {
         setHypeFile(prev => {
-          if (prev.find(h => h.id === taskToShred.id)) return prev; // Avoid duplicates
+          if (prev.find(h => h.id === taskToShred.id)) return prev; 
           return [...prev, taskToShred];
         });
       }
@@ -332,15 +344,18 @@ export default function App() {
   const tasksSoon = tasks.filter((t: Task) => t.date > baseDateStr && t.date <= inThreeDaysStr);
   const tasksEventually = tasks.filter((t: Task) => t.date > inThreeDaysStr);
 
-  const calendarEvents = tasks.map((t: Task) => ({ 
-    id: t.id.toString(), 
-    title: t.title, 
-    start: t.date,     // FullCalendar uses 'start'
-    end: t.endDate,    // Plugs in our perfect end times!
-    className: t.status ? 'event-done' : 'event-glass' 
-  }));
+  const calendarEvents = tasks.map((t: Task) => ({ id: t.id.toString(), title: t.title, start: t.date, end: t.endDate, className: t.status ? 'event-done' : 'event-glass' }));
 
   const activateZenMode = () => { playSound('zen'); setZenMode(true); };
+
+  const getWeekDays = (date: Date) => {
+    const start = new Date(date);
+    start.setDate(start.getDate() - start.getDay());
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(start); d.setDate(d.getDate() + i); return d;
+    });
+  };
+  const weekDays = getWeekDays(baseDate);
 
   if (energy === "survival") {
     return (
@@ -392,7 +407,6 @@ export default function App() {
 
   return (
     <div className={`dream-shell ${bg}`}>
-      
       <AnimatePresence>
         {anchorContext && (
           <motion.div initial={{ y: -100 }} animate={{ y: 0 }} exit={{ y: -100 }} className="anchor-banner">
@@ -425,7 +439,6 @@ export default function App() {
               <button className={`view-tab ${activeView==='year'?'active':''}`} onClick={() => setActiveView('year')}><CalIcon size={14}/> Year</button>
             </div>
           </div>
-          
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => setIsTranslatorOpen(true)} className="view-tab" title="Ctrl+Shift+M"><Briefcase size={16} /> TRANSLATE</button>
             <button onClick={() => setIsHypeModalOpen(true)} className="view-tab"><Trophy size={16} /> HYPE FILE</button>
@@ -435,7 +448,8 @@ export default function App() {
       </header>
 
       <main className="dashboard-layout">
-        {activeView === "horizon" ? (
+        
+        {activeView === "horizon" && (
           <div className="horizon-wrapper">
             <div className="global-time-travel">
               <button className="nav-arrow" onClick={() => shiftDate(-1)}><ChevronLeft size={24} /></button>
@@ -452,15 +466,10 @@ export default function App() {
                 <h3>🔥 ON FIRE</h3>
                 <div className="horizon-list">
                   {tasksOnFire.map((t: Task) => (
-                    <div key={t.id} draggable 
-                         onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} 
-                         onDragEnd={() => setDraggedTaskId(null)} 
-                         className={`horizon-card ${t.status?'dimmed':''} ${draggedTaskId === t.id ? 'dragging' : ''}`}>
+                    <div key={t.id} draggable onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} onDragEnd={() => setDraggedTaskId(null)} className={`horizon-card ${t.status?'dimmed':''} ${draggedTaskId === t.id ? 'dragging' : ''}`}>
                       <div className="drag-handle"><GripVertical size={14} /></div>
                       <span onClick={() => toggleTask(t.id)} className="card-title">
-                        {t.energy === 'spicy' && '🌶️ '}
-                        {t.energy === 'fidget' && '🪀 '}
-                        {t.energy === 'dopamine' && '🎮 '}
+                        {t.energy === 'spicy' && '🌶️ '} {t.energy === 'fidget' && '🪀 '} {t.energy === 'dopamine' && '🎮 '}
                         {t.title}
                       </span>
                       <div className="card-actions">
@@ -470,7 +479,18 @@ export default function App() {
                       </div>
                     </div>
                   ))}
-                  <form onSubmit={(e) => addTask(e, undefined, baseDateStr)}><input value={inputValue} onChange={e => setInputValue(e.target.value)} placeholder={`+ Add to ${baseDate.toLocaleDateString('en-US', {weekday: 'short'})}...`} className="dream-input-clean" /></form>
+                  <form onSubmit={(e) => handleManualAdd(e, baseDateStr)} className="compact-add-form" style={{ marginTop: '10px', borderTop: '2px dashed #000', paddingTop: '10px' }}>
+                    <input value={newTaskTitle} onChange={e => setNewTaskTitle(e.target.value)} placeholder={`+ Add to ${baseDate.toLocaleDateString('en-US', {weekday: 'short'})}...`} className="dream-input-clean" required />
+                    <div style={{ display: 'flex', gap: '5px', marginTop: '5px' }}>
+                      <input type="time" value={newTaskTime} onChange={e => setNewTaskTime(e.target.value)} className="dream-input-clean" style={{ padding: '8px', fontSize: '0.8rem' }} />
+                      <select value={newTaskEnergy} onChange={e => setNewTaskEnergy(e.target.value as any)} className="dream-input-clean" style={{ padding: '8px', fontSize: '0.8rem', cursor: 'pointer' }}>
+                        <option value="fidget">🪀 Fidget</option>
+                        <option value="spicy">🌶️ Spicy</option>
+                        <option value="dopamine">🎮 Fun</option>
+                      </select>
+                      <button type="submit" className="zen-activate-btn" style={{ padding: '8px 12px' }}>+</button>
+                    </div>
+                  </form>
                 </div>
               </div>
               
@@ -478,15 +498,10 @@ export default function App() {
                 <h3>⏳ SOON (NEXT 3 DAYS)</h3>
                 <div className="horizon-list">
                   {tasksSoon.map((t: Task) => (
-                     <div key={t.id} draggable 
-                          onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} 
-                          onDragEnd={() => setDraggedTaskId(null)} 
-                          className={`horizon-card ${draggedTaskId === t.id ? 'dragging' : ''}`}>
+                     <div key={t.id} draggable onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} onDragEnd={() => setDraggedTaskId(null)} className={`horizon-card ${draggedTaskId === t.id ? 'dragging' : ''}`}>
                        <div className="drag-handle"><GripVertical size={14} /></div>
                        <span className="card-title">
-                          {t.energy === 'spicy' && '🌶️ '}
-                          {t.energy === 'fidget' && '🪀 '}
-                          {t.energy === 'dopamine' && '🎮 '}
+                          {t.energy === 'spicy' && '🌶️ '} {t.energy === 'fidget' && '🪀 '} {t.energy === 'dopamine' && '🎮 '}
                           {t.title}
                        </span>
                        <div className="card-actions"><button className="delete-btn" onClick={() => deleteTask(t.id)}><Trash2 size={12}/></button></div>
@@ -499,10 +514,7 @@ export default function App() {
                 <h3>🌌 EVENTUALLY (THE VOID)</h3>
                 <div className="horizon-list blurred-list">
                   {tasksEventually.map((t: Task) => (
-                     <div key={t.id} draggable 
-                          onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} 
-                          onDragEnd={() => setDraggedTaskId(null)} 
-                          className={`horizon-card tiny-card ${draggedTaskId === t.id ? 'dragging' : ''}`}>
+                     <div key={t.id} draggable onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} onDragEnd={() => setDraggedTaskId(null)} className={`horizon-card tiny-card ${draggedTaskId === t.id ? 'dragging' : ''}`}>
                        <div className="drag-handle"><GripVertical size={12} /></div><span className="card-title">{t.title}</span>
                        <button className="delete-btn" onClick={() => deleteTask(t.id)}><Trash2 size={12}/></button>
                      </div>
@@ -511,14 +523,91 @@ export default function App() {
               </div>
             </div>
 
-            {/* CRITICAL SHREDDER FIX */}
             <div className="shredder-zone" onDragOver={(e) => e.preventDefault()} onDrop={(e) => handleDrop(e, 'shredder')}>
               <Skull size={24} /> DROP TO SHRED (SPICY TASKS SAVE TO HYPE FILE)
             </div>
           </div>
-        ) : (
-          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="glass-card calendar-wrapper">
-            <FullCalendar key={activeView} plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, multiMonthPlugin]} initialView={activeView === 'week' ? 'timeGridWeek' : activeView === 'month' ? 'dayGridMonth' : 'multiMonthYear'} headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }} events={calendarEvents} selectable={true} slotEventOverlap={false} dateClick={handleCalendarClick} height="100%" />
+        )}
+
+        {/* --- CUSTOM WEEK CHUNK VIEW (WITH TRASH ICONS) --- */}
+        {activeView === "week" && (
+          <div className="calendar-wrapper" style={{ padding: 0, overflow: 'hidden' }}>
+            <div className="custom-week-wrapper">
+              
+              <div className="week-grid-header">
+                <div className="chunk-label-empty">
+                  <div className="global-time-travel" style={{transform: 'scale(0.7)'}}>
+                    <button className="nav-arrow" onClick={() => shiftDate(-7)}><ChevronLeft size={16} /></button>
+                    <button className="nav-arrow" onClick={() => shiftDate(7)}><ChevronRight size={16} /></button>
+                  </div>
+                </div>
+                {weekDays.map(d => (
+                  <div key={d.toISOString()} className="week-header-cell" onClick={() => setTaskModalDate(getLocalISODate(d))}>
+                    <div>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
+                    <div>{d.getDate()}</div>
+                  </div>
+                ))}
+              </div>
+
+              {[
+                { id: 'morning', label: 'MORNING' },
+                { id: 'afternoon', label: 'AFTERNOON' },
+                { id: 'evening', label: 'EVENING' },
+                { id: 'night', label: 'NIGHT' }
+              ].map((chunk) => (
+                <div key={chunk.id} className={`week-grid-row row-${chunk.id}`}>
+                  <div className="chunk-label">{chunk.label}</div>
+                  {weekDays.map(d => {
+                    const dayStr = getLocalISODate(d);
+                    const dayTasks = tasks.filter(t => t.date.startsWith(dayStr) && getTaskChunk(t.date) === chunk.id);
+                    
+                    return (
+                      <div key={dayStr} className="week-day-cell" onClick={() => setTaskModalDate(dayStr)}>
+                        {dayTasks.sort((a,b)=>a.date.localeCompare(b.date)).map(t => {
+                          const timeStr = t.date.includes('T') ? new Date(t.date).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'}) : 'ALL DAY';
+                          return (
+                            <div key={t.id} className={`week-task-card ${t.status ? 'dimmed' : ''}`} onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
+                              
+                              {/* NEW: THE DELETE BUTTON IS NOW WIRED INTO THE WEEK CARDS */}
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                <div className="week-task-time" style={{ marginBottom: 0 }}>{timeStr}</div>
+                                <button className="delete-btn" style={{ padding: '4px', boxShadow: '2px 2px 0px #000', border: '2px solid #000' }} onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}>
+                                  <Trash2 size={12}/>
+                                </button>
+                              </div>
+
+                              <div className="week-task-title">{t.title}</div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )
+                  })}
+                </div>
+              ))}
+
+            </div>
+          </div>
+        )}
+
+        {/* MONTH & YEAR FULLCALENDAR */}
+        {(activeView === "month" || activeView === "year") && (
+          <motion.div initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }} className="calendar-wrapper">
+            <FullCalendar 
+              key={activeView} 
+              plugins={[dayGridPlugin, interactionPlugin, multiMonthPlugin]} 
+              initialView={activeView === 'month' ? 'dayGridMonth' : 'multiMonthYear'} 
+              headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }} 
+              events={calendarEvents} 
+              selectable={true} 
+              dateClick={handleCalendarClick} 
+              /* NEW: CLICKING A MONTH EVENT NOW OPENS THE DAY SO YOU CAN DELETE IT */
+              eventClick={(info) => {
+                const clickedDate = info.event.startStr.split('T')[0];
+                setTaskModalDate(clickedDate);
+              }}
+              height="100%" 
+            />
           </motion.div>
         )}
       </main>
@@ -576,7 +665,6 @@ export default function App() {
                 <button className="close-giant-btn" onClick={() => setIsHypeModalOpen(false)}><X size={32} strokeWidth={3} /></button>
               </div>
               <p style={{fontSize: '1.5rem', fontWeight: 900, textAlign: 'left', marginTop: 0}}>Your Secret Work Ledger.</p>
-              
               <div className="horizon-list giant-task-list" style={{flex: 1}}>
                 {hypeFile.length === 0 ? (
                   <div className="empty-day-msg">SHRED SPICY TASKS TO BUILD YOUR HYPE FILE.</div>
@@ -590,7 +678,6 @@ export default function App() {
                   ))
                 )}
               </div>
-
               {hypeSummary ? (
                 <div style={{textAlign: 'left', background: 'var(--color-void)', padding: '20px', border: '4px solid #000'}}>
                    <h3 style={{margin: '0 0 10px 0', fontWeight: 900}}>PERFORMANCE REVIEW BULLETS:</h3>
@@ -644,6 +731,7 @@ export default function App() {
 
       <AnimatePresence>{unstuckPrompt && ( <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="unstuck-modal"><h4>Micro-Step Generated:</h4><p>{unstuckPrompt.text}</p><button onClick={() => setUnstuckPrompt(null)}>Got it.</button></motion.div> )}</AnimatePresence>
       
+      {/* --- UPGRADED GIANT DAY MODAL FORM --- */}
       <AnimatePresence>
         {taskModalDate && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="custom-modal-overlay" onClick={() => setTaskModalDate(null)}>
@@ -663,17 +751,28 @@ export default function App() {
                     return (
                       <div key={t.id} className={`horizon-card giant-task-row ${t.status ? 'dimmed' : ''}`}>
                         <div className="task-time-badge">{timeString}</div>
-                        <span onClick={() => toggleTask(t.id)} className="card-title giant-card-title">{t.title}</span>
+                        <span onClick={() => toggleTask(t.id)} className="card-title giant-card-title">
+                          {t.energy === 'spicy' && '🌶️ '} {t.energy === 'fidget' && '🪀 '} {t.energy === 'dopamine' && '🎮 '}
+                          {t.title}
+                        </span>
                         <div className="card-actions"><button className="delete-btn giant-delete" onClick={() => deleteTask(t.id)}><Trash2 size={24}/></button></div>
                       </div>
                     )
                   })
                 )}
               </div>
-              <form onSubmit={(e) => { addTask(e, undefined, taskModalDate); }} className="giant-add-form">
-                <input autoFocus value={inputValue} onChange={(e) => setInputValue(e.target.value)} placeholder="Type a new target and hit enter..." className="dream-input-clean" />
+              
+              <form onSubmit={(e) => handleManualAdd(e, taskModalDate)} className="giant-add-form">
+                <input autoFocus value={newTaskTitle} onChange={(e) => setNewTaskTitle(e.target.value)} placeholder="Type a new target..." className="dream-input-clean" required />
+                <input type="time" value={newTaskTime} onChange={(e) => setNewTaskTime(e.target.value)} className="dream-input-clean" style={{width: 'auto', flex: 'none'}} />
+                <select value={newTaskEnergy} onChange={(e) => setNewTaskEnergy(e.target.value as any)} className="dream-input-clean" style={{width: 'auto', flex: 'none', cursor: 'pointer'}}>
+                  <option value="fidget">🪀 Fidget</option>
+                  <option value="spicy">🌶️ Spicy</option>
+                  <option value="dopamine">🎮 Dopamine</option>
+                </select>
                 <button type="submit" className="zen-activate-btn">LOCK IN</button>
               </form>
+
             </motion.div>
           </motion.div>
         )}
