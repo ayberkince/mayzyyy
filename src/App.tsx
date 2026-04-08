@@ -1,14 +1,16 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Trash2, BatteryFull, BatteryMedium, BatteryWarning, Dices, GripVertical, Calendar as CalIcon, Layout, ChevronLeft, ChevronRight, Bot, X, Loader2, Send, Zap, Skull, Anchor, Trophy, Briefcase } from "lucide-react";
+import { Sparkles, Trash2, BatteryFull, BatteryMedium, BatteryWarning, Dices, GripVertical, Calendar as CalIcon, Layout, ChevronLeft, ChevronRight, Bot, X, Loader2, Send, Zap, Skull, Anchor, Trophy, Briefcase, Edit3 } from "lucide-react";
 import confetti from "canvas-confetti";
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
+import timeGridPlugin from "@fullcalendar/timegrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import multiMonthPlugin from "@fullcalendar/multimonth";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import "./App.css";
 
+// --- TYPESCRIPT BLUEPRINTS ---
 interface Task {
   id: number;
   date: string;
@@ -100,6 +102,12 @@ export default function App() {
   const [translatorInput, setTranslatorInput] = useState("");
   const [translatorOutput, setTranslatorOutput] = useState("");
 
+  const [editingTask, setEditingTask] = useState<Task | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDate, setEditDate] = useState(""); 
+  const [editTime, setEditTime] = useState("");
+  const [editEnergy, setEditEnergy] = useState<"spicy" | "fidget" | "dopamine">("fidget");
+
   const clickTimeoutRef = useRef<any>(null);
   const lastClickTimeRef = useRef<number>(0);
   const lastClickDateRef = useRef<string | null>(null);
@@ -123,17 +131,30 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  // --- UPDATED LOGIC: HIGH = GHOST SPICY, MED = GHOST FIDGET ---
+  const getEnergyGhostClass = (taskEnergy?: string) => {
+    if (!taskEnergy) return "";
+    // MED Energy: User focuses on Spicy + Dopamine, so we ghost Fidget.
+    if (energy === "normal" && taskEnergy === "fidget") return "task-ghosted";
+    // HIGH Energy: User focuses on Fidget + Dopamine, so we ghost Spicy.
+    if (energy === "hyper" && taskEnergy === "spicy") return "task-ghosted";
+    return "";
+  };
+
   const handleTranslate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!translatorInput.trim() || !aiKey) return;
     setIsAiLoading(true);
     try {
       const genAI = new GoogleGenerativeAI(aiKey.trim());
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
       const prompt = `You are an expert corporate communicator protecting an employee with ADHD. Translate this raw, emotional, or blunt thought into a highly professional, polite, and constructive corporate email/message. RAW THOUGHT: "${translatorInput}"`;
       const result = await model.generateContent(prompt);
       setTranslatorOutput(result.response.text());
-    } catch (e) { console.error(e); }
+    } catch (e: any) { 
+      console.error(e);
+      alert(`AI Translator Error: ${e.message}`);
+    }
     setIsAiLoading(false);
   };
 
@@ -142,11 +163,14 @@ export default function App() {
     setIsAiLoading(true);
     try {
       const genAI = new GoogleGenerativeAI(aiKey.trim());
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
-      const prompt = `You are a career coach. Take this list of completed tasks and generate 3-5 impressive, professional bullet points for a performance review. Make the user sound incredibly organized and impactful. TASKS: ${JSON.stringify(hypeFile.map(t => t.title))}`;
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
+      const prompt = `You are a career coach. Take this list of completed tasks and generate 3-5 impressive, professional bullet points for a performance review. Make the user sound incredibly organized and impactful. Even if the tasks are personal routines (like "Bedtime" or "Lunch"), spin them into hilarious, high-level corporate achievements (e.g. "Optimized daily bio-recovery protocols"). TASKS: ${JSON.stringify(hypeFile.map(t => t.title))}`;
       const result = await model.generateContent(prompt);
       setHypeSummary(result.response.text());
-    } catch (e) { console.error(e); }
+    } catch (e: any) { 
+      console.error(e);
+      alert(`Hype File AI Error: ${e.message}`); 
+    }
     setIsAiLoading(false);
   };
 
@@ -160,7 +184,7 @@ export default function App() {
 
     try {
       const genAI = new GoogleGenerativeAI(aiKey.trim());
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
       const chat = model.startChat({ history: chatMessages.slice(1).map(msg => ({ role: msg.role === 'ai' ? 'model' : 'user', parts: [{ text: msg.text }] })) });
 
       const prompt = `
@@ -171,6 +195,10 @@ export default function App() {
       
       Reply conversationally FIRST, then append "|||" followed by a JSON object using these optional arrays:
       - "add": [{"title": "Task Name", "date": "YYYY-MM-DDTHH:mm:00", "energy": "spicy" | "fidget" | "dopamine"}] 
+        * CRITICAL: You MUST categorize EVERY added task by setting the "energy" field correctly!
+        * "spicy" = work, difficult tasks, heavy meetings.
+        * "fidget" = easy chores, routines, water.
+        * "dopamine" = fun, games, breaks.
       - "remove": ["Task Name to delete"]
       - "complete": ["Task Name to cross off"]
       
@@ -183,7 +211,10 @@ export default function App() {
 
       if (responseText.includes("|||")) {
         const parts = responseText.split("|||"); aiReply = parts[0].trim();
-        try { jsonPayload = JSON.parse(parts[1].match(/\{[\s\S]*\}/)?.[0] || parts[1]); } catch (e) {}
+        try { 
+          const jsonStr = parts[1].substring(parts[1].indexOf('{'), parts[1].lastIndexOf('}') + 1);
+          jsonPayload = JSON.parse(jsonStr); 
+        } catch (e) { console.error("JSON parse failed", e); }
       }
 
       setChatMessages(prev => [...prev, { role: 'ai', text: aiReply }]);
@@ -210,6 +241,7 @@ export default function App() {
                   const taskDate = t.date || getLocalISODate(new Date());
                   const hasTime = taskDate.includes('T');
                   const isMeeting = /meeting|call|zoom|sync|interview|1:1/i.test(taskTitle);
+                  const assignedEnergy = t.energy || "fidget";
 
                   if (isMeeting && hasTime) {
                     const mainDateObj = new Date(taskDate);
@@ -222,7 +254,7 @@ export default function App() {
                     newTasks.push({ id: Date.now() + Math.random(), date: taskDate, endDate: formatIso(meetingEnd), title: taskTitle, status: false, energy: "spicy" });
                     newTasks.push({ id: Date.now() + Math.random(), date: formatIso(meetingEnd), endDate: formatIso(decompressEnd), title: `🛡️ Decompress`, status: false, energy: "fidget" });
                   } else {
-                    newTasks.push({ id: Date.now() + Math.random(), date: taskDate, title: taskTitle, status: false, energy: t.energy || "fidget" });
+                    newTasks.push({ id: Date.now() + Math.random(), date: taskDate, title: taskTitle, status: false, energy: assignedEnergy });
                   }
                });
                updatedTasks = [...updatedTasks, ...newTasks];
@@ -231,7 +263,9 @@ export default function App() {
          });
          triggerDopamine(); 
       }
-    } catch (error: any) { setChatMessages(prev => [...prev, { role: 'ai', text: `System Error: ${error.message}` }]); }
+    } catch (error: any) { 
+      setChatMessages(prev => [...prev, { role: 'ai', text: `AI Command Error: ${error.message}` }]); 
+    }
     setIsAiLoading(false);
   };
 
@@ -240,7 +274,7 @@ export default function App() {
     setIsAiLoading(true);
     try {
       const genAI = new GoogleGenerativeAI(aiKey.trim());
-      const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+      const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" }); 
       const result = await model.generateContent(`You are an ADHD assistant. The user is paralyzed by this task: "${task.title}". Break it down into 3 tiny, ridiculously easy physical micro-steps. Return ONLY a valid JSON array of strings.`);
       const match = result.response.text().match(/\[.*\]/s);
       if (match) {
@@ -252,7 +286,10 @@ export default function App() {
         });
         playSound('clack'); triggerDopamine();
       }
-    } catch (e) { console.error("Fracture failed", e); }
+    } catch (e: any) { 
+      console.error(e);
+      alert(`Fracture Error: ${e.message}`);
+    }
     setIsAiLoading(false);
   };
   
@@ -283,9 +320,58 @@ export default function App() {
       energy: newTaskEnergy 
     }]);
 
-    setNewTaskTitle("");
-    setNewTaskTime("");
-    setNewTaskEnergy("fidget");
+    setNewTaskTitle(""); setNewTaskTime(""); setNewTaskEnergy("fidget");
+  };
+
+  const startEditing = (task: Task) => {
+    setEditingTask(task);
+    setEditTitle(task.title);
+    setEditDate(task.date.split('T')[0]); 
+    setEditEnergy(task.energy || "fidget");
+    
+    if (task.date.includes('T')) {
+      const d = new Date(task.date);
+      const hours = d.getHours().toString().padStart(2, '0');
+      const mins = d.getMinutes().toString().padStart(2, '0');
+      setEditTime(`${hours}:${mins}`);
+    } else {
+      setEditTime("");
+    }
+  };
+
+  const saveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTask || !editTitle.trim() || !editDate) return;
+
+    let finalDate = editDate; 
+    if (editTime) {
+      finalDate = `${editDate}T${editTime}:00`; 
+    }
+
+    setTasks(tasks.map(t => 
+      t.id === editingTask.id 
+        ? { ...t, title: editTitle, date: finalDate, energy: editEnergy, endDate: undefined } 
+        : t
+    ));
+    setEditingTask(null);
+  };
+
+  const handleFullCalendarEventChange = (info: any) => {
+    const taskId = info.event.extendedProps.task?.id;
+    if (!taskId) return;
+    
+    let newStart = info.event.startStr;
+    if (newStart.includes('T')) newStart = newStart.substring(0, 19); 
+    
+    let newEnd = info.event.endStr;
+    if (newEnd && newEnd.includes('T')) newEnd = newEnd.substring(0, 19);
+
+    setTasks(prev => prev.map(t => 
+      t.id === taskId 
+        ? { ...t, date: newStart, endDate: newEnd || undefined } 
+        : t
+    ));
+    playSound('clack');
   };
 
   const baseDateStr = getLocalISODate(baseDate);
@@ -333,18 +419,9 @@ export default function App() {
     if (zone === "soon") { const tmrw = new Date(baseDate); tmrw.setDate(baseDate.getDate() + 1); newDate = getLocalISODate(tmrw); } 
     else if (zone === "void") { const nextWeek = new Date(baseDate); nextWeek.setDate(baseDate.getDate() + 7); newDate = getLocalISODate(nextWeek); }
     
-    setTasks(tasks.map((t: Task) => t.id === targetId ? { ...t, date: newDate } : t));
+    setTasks(tasks.map((t: Task) => t.id === targetId ? { ...t, date: newDate, endDate: undefined } : t));
     setDraggedTaskId(null);
   };
-
-  const inThreeDays = new Date(baseDate); inThreeDays.setDate(inThreeDays.getDate() + 3);
-  const inThreeDaysStr = getLocalISODate(inThreeDays);
-  
-  const tasksOnFire = tasks.filter((t: Task) => t.date <= baseDateStr);
-  const tasksSoon = tasks.filter((t: Task) => t.date > baseDateStr && t.date <= inThreeDaysStr);
-  const tasksEventually = tasks.filter((t: Task) => t.date > inThreeDaysStr);
-
-  const calendarEvents = tasks.map((t: Task) => ({ id: t.id.toString(), title: t.title, start: t.date, end: t.endDate, className: t.status ? 'event-done' : 'event-glass' }));
 
   const activateZenMode = () => { playSound('zen'); setZenMode(true); };
 
@@ -355,7 +432,28 @@ export default function App() {
       const d = new Date(start); d.setDate(d.getDate() + i); return d;
     });
   };
-  const weekDays = getWeekDays(baseDate);
+
+  // --- CRITICAL FIX: DO NOT FILTER ARRAYS, JUST RENDER EVERYTHING ---
+  // The ghosting class will visually hide them, so they stay in memory properly!
+  const visibleTasks = tasks;
+
+  const inThreeDays = new Date(baseDate); inThreeDays.setDate(inThreeDays.getDate() + 3);
+  const inThreeDaysStr = getLocalISODate(inThreeDays);
+  
+  const tasksOnFire = visibleTasks.filter((t: Task) => t.date <= baseDateStr);
+  const tasksSoon = visibleTasks.filter((t: Task) => t.date > baseDateStr && t.date <= inThreeDaysStr);
+  const tasksEventually = visibleTasks.filter((t: Task) => t.date > inThreeDaysStr);
+
+  const calendarEvents = visibleTasks.map((t: Task) => ({ 
+    id: t.id.toString(), 
+    title: t.title, 
+    start: t.date, 
+    end: t.endDate, 
+    className: `${t.status ? 'event-done' : 'event-glass'} ${getEnergyGhostClass(t.energy)}`, 
+    extendedProps: { task: t } 
+  }));
+
+  const weekDaysArray = getWeekDays(baseDate);
 
   if (energy === "survival") {
     return (
@@ -407,6 +505,30 @@ export default function App() {
 
   return (
     <div className={`dream-shell ${bg}`}>
+      
+      <AnimatePresence>
+        {editingTask && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="custom-modal-overlay" style={{ zIndex: 10050 }} onClick={() => setEditingTask(null)}>
+            <motion.div initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }} className="custom-modal-content" onClick={e => e.stopPropagation()}>
+              <h3 style={{fontSize: '2rem', margin: '0 0 20px 0'}}>EDIT TARGET</h3>
+              <form onSubmit={saveEdit} style={{display: 'flex', flexDirection: 'column', gap: '15px'}}>
+                <input autoFocus value={editTitle} onChange={e => setEditTitle(e.target.value)} className="dream-input-clean" placeholder="Task title..." required />
+                <div style={{display: 'flex', gap: '10px'}}>
+                  <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="dream-input-clean" style={{flex: 1}} required />
+                  <input type="time" value={editTime} onChange={e => setEditTime(e.target.value)} className="dream-input-clean" style={{flex: 1}} />
+                  <select value={editEnergy} onChange={e => setEditEnergy(e.target.value as any)} className="dream-input-clean" style={{flex: 1, cursor: 'pointer'}}>
+                    <option value="fidget">🪀 Fidget</option>
+                    <option value="spicy">🌶️ Spicy</option>
+                    <option value="dopamine">🎮 Dopamine</option>
+                  </select>
+                </div>
+                <button type="submit" className="zen-activate-btn" style={{padding: '15px', marginTop: '10px'}}>SAVE CHANGES</button>
+              </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       <AnimatePresence>
         {anchorContext && (
           <motion.div initial={{ y: -100 }} animate={{ y: 0 }} exit={{ y: -100 }} className="anchor-banner">
@@ -449,6 +571,7 @@ export default function App() {
 
       <main className="dashboard-layout">
         
+        {/* HORIZON VIEW */}
         {activeView === "horizon" && (
           <div className="horizon-wrapper">
             <div className="global-time-travel">
@@ -466,16 +589,16 @@ export default function App() {
                 <h3>🔥 ON FIRE</h3>
                 <div className="horizon-list">
                   {tasksOnFire.map((t: Task) => (
-                    <div key={t.id} draggable onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} onDragEnd={() => setDraggedTaskId(null)} className={`horizon-card ${t.status?'dimmed':''} ${draggedTaskId === t.id ? 'dragging' : ''}`}>
+                    <div key={t.id} draggable onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} onDragEnd={() => setDraggedTaskId(null)} className={`horizon-card ${t.status?'dimmed':''} ${draggedTaskId === t.id ? 'dragging' : ''} ${getEnergyGhostClass(t.energy)}`}>
                       <div className="drag-handle"><GripVertical size={14} /></div>
-                      <span onClick={() => toggleTask(t.id)} className="card-title">
+                      <span onClick={() => toggleTask(t.id)} onDoubleClick={() => startEditing(t)} className="card-title">
                         {t.energy === 'spicy' && '🌶️ '} {t.energy === 'fidget' && '🪀 '} {t.energy === 'dopamine' && '🎮 '}
                         {t.title}
                       </span>
                       <div className="card-actions">
-                        <button className="unstuck-btn" onClick={() => fractureTask(t)} title="Fracture this task"><Zap size={14}/></button>
-                        <button className="unstuck-btn" onClick={() => handleUnstuck(t.id)} title="Feeling stuck?"><Dices size={14}/></button>
-                        <button className="delete-btn" onClick={() => deleteTask(t.id)}><Trash2 size={12}/></button>
+                        <button className="unstuck-btn" onClick={(e) => { e.stopPropagation(); fractureTask(t); }} title="Fracture this task"><Zap size={14}/></button>
+                        <button className="unstuck-btn" onClick={(e) => { e.stopPropagation(); startEditing(t); }} title="Edit Task"><Edit3 size={14}/></button>
+                        <button className="delete-btn" onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}><Trash2 size={12}/></button>
                       </div>
                     </div>
                   ))}
@@ -498,13 +621,16 @@ export default function App() {
                 <h3>⏳ SOON (NEXT 3 DAYS)</h3>
                 <div className="horizon-list">
                   {tasksSoon.map((t: Task) => (
-                     <div key={t.id} draggable onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} onDragEnd={() => setDraggedTaskId(null)} className={`horizon-card ${draggedTaskId === t.id ? 'dragging' : ''}`}>
+                     <div key={t.id} draggable onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} onDragEnd={() => setDraggedTaskId(null)} className={`horizon-card ${draggedTaskId === t.id ? 'dragging' : ''} ${getEnergyGhostClass(t.energy)}`}>
                        <div className="drag-handle"><GripVertical size={14} /></div>
-                       <span className="card-title">
+                       <span onDoubleClick={() => startEditing(t)} className="card-title">
                           {t.energy === 'spicy' && '🌶️ '} {t.energy === 'fidget' && '🪀 '} {t.energy === 'dopamine' && '🎮 '}
                           {t.title}
                        </span>
-                       <div className="card-actions"><button className="delete-btn" onClick={() => deleteTask(t.id)}><Trash2 size={12}/></button></div>
+                       <div className="card-actions">
+                         <button className="unstuck-btn" onClick={(e) => { e.stopPropagation(); startEditing(t); }}><Edit3 size={12}/></button>
+                         <button className="delete-btn" onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}><Trash2 size={12}/></button>
+                       </div>
                      </div>
                   ))}
                 </div>
@@ -514,9 +640,16 @@ export default function App() {
                 <h3>🌌 EVENTUALLY (THE VOID)</h3>
                 <div className="horizon-list blurred-list">
                   {tasksEventually.map((t: Task) => (
-                     <div key={t.id} draggable onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} onDragEnd={() => setDraggedTaskId(null)} className={`horizon-card tiny-card ${draggedTaskId === t.id ? 'dragging' : ''}`}>
-                       <div className="drag-handle"><GripVertical size={12} /></div><span className="card-title">{t.title}</span>
-                       <button className="delete-btn" onClick={() => deleteTask(t.id)}><Trash2 size={12}/></button>
+                     <div key={t.id} draggable onDragStart={(e) => { setDraggedTaskId(t.id); e.dataTransfer.setData("taskId", t.id.toString()); }} onDragEnd={() => setDraggedTaskId(null)} className={`horizon-card tiny-card ${draggedTaskId === t.id ? 'dragging' : ''} ${getEnergyGhostClass(t.energy)}`}>
+                       <div className="drag-handle"><GripVertical size={12} /></div>
+                       <span onDoubleClick={() => startEditing(t)} className="card-title">
+                         {t.energy === 'spicy' && '🌶️ '} {t.energy === 'fidget' && '🪀 '} {t.energy === 'dopamine' && '🎮 '}
+                         {t.title}
+                       </span>
+                       <div className="card-actions">
+                         <button className="unstuck-btn" onClick={(e) => { e.stopPropagation(); startEditing(t); }}><Edit3 size={12}/></button>
+                         <button className="delete-btn" onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}><Trash2 size={12}/></button>
+                       </div>
                      </div>
                   ))}
                 </div>
@@ -529,7 +662,7 @@ export default function App() {
           </div>
         )}
 
-        {/* --- CUSTOM WEEK CHUNK VIEW (WITH TRASH ICONS) --- */}
+        {/* --- CUSTOM WEEK CHUNK VIEW --- */}
         {activeView === "week" && (
           <div className="calendar-wrapper" style={{ padding: 0, overflow: 'hidden' }}>
             <div className="custom-week-wrapper">
@@ -541,7 +674,7 @@ export default function App() {
                     <button className="nav-arrow" onClick={() => shiftDate(7)}><ChevronRight size={16} /></button>
                   </div>
                 </div>
-                {weekDays.map(d => (
+                {weekDaysArray.map(d => (
                   <div key={d.toISOString()} className="week-header-cell" onClick={() => setTaskModalDate(getLocalISODate(d))}>
                     <div>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
                     <div>{d.getDate()}</div>
@@ -557,26 +690,47 @@ export default function App() {
               ].map((chunk) => (
                 <div key={chunk.id} className={`week-grid-row row-${chunk.id}`}>
                   <div className="chunk-label">{chunk.label}</div>
-                  {weekDays.map(d => {
+                  {weekDaysArray.map(d => {
                     const dayStr = getLocalISODate(d);
-                    const dayTasks = tasks.filter(t => t.date.startsWith(dayStr) && getTaskChunk(t.date) === chunk.id);
+                    const dayTasks = visibleTasks.filter(t => t.date.startsWith(dayStr) && getTaskChunk(t.date) === chunk.id);
                     
                     return (
-                      <div key={dayStr} className="week-day-cell" onClick={() => setTaskModalDate(dayStr)}>
+                      <div 
+                        key={dayStr} 
+                        className="week-day-cell" 
+                        onClick={() => setTaskModalDate(dayStr)}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault(); e.stopPropagation();
+                          const targetId = Number(e.dataTransfer.getData("taskId"));
+                          if (!targetId) return;
+                          const chunkHours: Record<string, string> = { morning: '09:00', afternoon: '14:00', evening: '18:00', night: '22:00' };
+                          const newDate = `${dayStr}T${chunkHours[chunk.id]}:00`;
+                          setTasks(prev => prev.map(t => t.id === targetId ? { ...t, date: newDate, endDate: undefined } : t));
+                          playSound('clack');
+                        }}
+                      >
                         {dayTasks.sort((a,b)=>a.date.localeCompare(b.date)).map(t => {
                           const timeStr = t.date.includes('T') ? new Date(t.date).toLocaleTimeString('en-US', {hour: 'numeric', minute: '2-digit'}) : 'ALL DAY';
                           return (
-                            <div key={t.id} className={`week-task-card ${t.status ? 'dimmed' : ''}`} onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
-                              
-                              {/* NEW: THE DELETE BUTTON IS NOW WIRED INTO THE WEEK CARDS */}
+                            <div 
+                              key={t.id} 
+                              draggable 
+                              onDragStart={(e) => { e.stopPropagation(); e.dataTransfer.setData("taskId", t.id.toString()); }}
+                              className={`week-task-card ${t.status ? 'dimmed' : ''} ${getEnergyGhostClass(t.energy)}`} 
+                              onDoubleClick={(e) => { e.stopPropagation(); startEditing(t); }}
+                            >
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                <div className="week-task-time" style={{ marginBottom: 0 }}>{timeStr}</div>
-                                <button className="delete-btn" style={{ padding: '4px', boxShadow: '2px 2px 0px #000', border: '2px solid #000' }} onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}>
-                                  <Trash2 size={12}/>
-                                </button>
+                                <div className="week-task-time" style={{ marginBottom: 0, cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>{timeStr}</div>
+                                <div style={{display: 'flex', gap: '4px'}}>
+                                  <button className="unstuck-btn" style={{ padding: '4px', boxShadow: '2px 2px 0px #000', border: '2px solid #000' }} onClick={(e) => { e.stopPropagation(); startEditing(t); }}><Edit3 size={12}/></button>
+                                  <button className="delete-btn" style={{ padding: '4px', boxShadow: '2px 2px 0px #000', border: '2px solid #000' }} onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}><Trash2 size={12}/></button>
+                                </div>
                               </div>
-
-                              <div className="week-task-title">{t.title}</div>
+                              <div className="week-task-title" style={{cursor: 'pointer'}} onClick={(e) => { e.stopPropagation(); toggleTask(t.id); }}>
+                                {t.energy === 'spicy' && '🌶️ '} {t.energy === 'fidget' && '🪀 '} {t.energy === 'dopamine' && '🎮 '}
+                                {t.title}
+                              </div>
                             </div>
                           )
                         })}
@@ -601,11 +755,14 @@ export default function App() {
               events={calendarEvents} 
               selectable={true} 
               dateClick={handleCalendarClick} 
-              /* NEW: CLICKING A MONTH EVENT NOW OPENS THE DAY SO YOU CAN DELETE IT */
               eventClick={(info) => {
-                const clickedDate = info.event.startStr.split('T')[0];
-                setTaskModalDate(clickedDate);
+                const clickedTask = info.event.extendedProps.task;
+                if(clickedTask) { startEditing(clickedTask); }
               }}
+              editable={true}
+              droppable={true}
+              eventDrop={handleFullCalendarEventChange}
+              eventResize={handleFullCalendarEventChange}
               height="100%" 
             />
           </motion.div>
@@ -614,7 +771,6 @@ export default function App() {
 
       <button className="ai-float-btn" onClick={() => setIsAiOpen(true)} title="Ctrl+Space to open"><Bot size={24} /></button>
 
-      {/* --- MODALS FOR CORPORATE TOOLS --- */}
       <AnimatePresence>
         {isTranslatorOpen && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="custom-modal-overlay" onClick={() => setIsTranslatorOpen(false)}>
@@ -672,7 +828,10 @@ export default function App() {
                   hypeFile.map((t, idx) => (
                     <div key={idx} className="horizon-card giant-task-row">
                       <div className="task-time-badge">{t.date.split('T')[0]}</div>
-                      <span className="card-title giant-card-title">{t.title}</span>
+                      <span className="card-title giant-card-title">
+                        {t.energy === 'spicy' && '🌶️ '} {t.energy === 'fidget' && '🪀 '} {t.energy === 'dopamine' && '🎮 '}
+                        {t.title}
+                      </span>
                       <button className="delete-btn" onClick={() => setHypeFile(prev => prev.filter((_, i) => i !== idx))}><Trash2 size={24}/></button>
                     </div>
                   ))
@@ -731,7 +890,6 @@ export default function App() {
 
       <AnimatePresence>{unstuckPrompt && ( <motion.div initial={{ opacity: 0, y: 50 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 50 }} className="unstuck-modal"><h4>Micro-Step Generated:</h4><p>{unstuckPrompt.text}</p><button onClick={() => setUnstuckPrompt(null)}>Got it.</button></motion.div> )}</AnimatePresence>
       
-      {/* --- UPGRADED GIANT DAY MODAL FORM --- */}
       <AnimatePresence>
         {taskModalDate && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="custom-modal-overlay" onClick={() => setTaskModalDate(null)}>
@@ -741,21 +899,24 @@ export default function App() {
                 <button className="close-giant-btn" onClick={() => setTaskModalDate(null)}><X size={32} strokeWidth={3} /></button>
               </div>
               <div className="horizon-list giant-task-list">
-                {tasks.filter((t: Task) => t.date.startsWith(taskModalDate)).length === 0 ? (
+                {visibleTasks.filter((t: Task) => t.date.startsWith(taskModalDate)).length === 0 ? (
                   <div className="empty-day-msg">NO TARGETS SET. YOU ARE FREE.</div>
                 ) : (
-                  tasks.filter((t: Task) => t.date.startsWith(taskModalDate)).sort((a, b) => a.date.localeCompare(b.date)).map((t: Task) => {
+                  visibleTasks.filter((t: Task) => t.date.startsWith(taskModalDate)).sort((a, b) => a.date.localeCompare(b.date)).map((t: Task) => {
                     const hasTime = t.date.includes('T');
                     let timeString = "ALL DAY";
                     if (hasTime) { const dateObj = new Date(t.date); timeString = dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }); }
                     return (
-                      <div key={t.id} className={`horizon-card giant-task-row ${t.status ? 'dimmed' : ''}`}>
+                      <div key={t.id} className={`horizon-card giant-task-row ${t.status ? 'dimmed' : ''} ${getEnergyGhostClass(t.energy)}`}>
                         <div className="task-time-badge">{timeString}</div>
-                        <span onClick={() => toggleTask(t.id)} className="card-title giant-card-title">
+                        <span onClick={() => toggleTask(t.id)} onDoubleClick={() => startEditing(t)} className="card-title giant-card-title">
                           {t.energy === 'spicy' && '🌶️ '} {t.energy === 'fidget' && '🪀 '} {t.energy === 'dopamine' && '🎮 '}
                           {t.title}
                         </span>
-                        <div className="card-actions"><button className="delete-btn giant-delete" onClick={() => deleteTask(t.id)}><Trash2 size={24}/></button></div>
+                        <div className="card-actions">
+                          <button className="unstuck-btn giant-delete" onClick={(e) => { e.stopPropagation(); startEditing(t); }}><Edit3 size={24}/></button>
+                          <button className="delete-btn giant-delete" onClick={(e) => { e.stopPropagation(); deleteTask(t.id); }}><Trash2 size={24}/></button>
+                        </div>
                       </div>
                     )
                   })
